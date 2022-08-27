@@ -143,7 +143,7 @@ function maybeResolveCanisterIdFromHeaders(
     // Remove the port.
     const maybeCanisterId = maybeResolveCanisterIdFromHostName(
       maybeHostHeader.replace(/:\d+$/, ''),
-      null
+      "/"
     );
     if (maybeCanisterId) {
       return maybeCanisterId;
