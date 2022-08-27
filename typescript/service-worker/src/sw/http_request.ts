@@ -15,11 +15,9 @@ import { idlFactory } from '../http-interface/canister_http_interface';
 import { streamContent } from './streaming';
 
 const hostnameCanisterIdMap: Record<string, [string, string]> = {
-  'identity.ic0.app': ['rdmx6-jaaaa-aaaaa-aaadq-cai', 'ic0.app'],
-  'nns.ic0.app': ['qoctq-giaaa-aaaaa-aaaea-cai', 'ic0.app'],
-  'dscvr.one': ['h5aet-waaaa-aaaab-qaamq-cai', 'ic0.app'],
-  'dscvr.ic0.app': ['h5aet-waaaa-aaaab-qaamq-cai', 'ic0.app'],
-  'personhood.ic0.app': ['g3wsl-eqaaa-aaaan-aaaaa-cai', 'ic0.app'],
+  'civol.app/': ['qoctq-giaaa-aaaaa-aaaea-cai', 'ic0.app'],
+  'civol.app/news': ['rdmx6-jaaaa-aaaaa-aaadq-cai', 'ic0.app'],
+  'civol.app/docs': ['h5aet-waaaa-aaaab-qaamq-cai', 'ic0.app'],
 };
 
 const shouldFetchRootKey: boolean = ['1', 'true'].includes(
@@ -27,7 +25,7 @@ const shouldFetchRootKey: boolean = ['1', 'true'].includes(
 );
 const swLocation = new URL(self.location.toString());
 const [, swDomains] = (() => {
-  const maybeSplit = splitHostnameForCanisterId(swLocation.hostname);
+  const maybeSplit = splitHostnameForCanisterId(swLocation.hostname, swLocation.pathname);
   if (maybeSplit) {
     return maybeSplit;
   } else {
@@ -42,15 +40,16 @@ const [, swDomains] = (() => {
  *     canister ID were found.
  */
 function splitHostnameForCanisterId(
-  hostname: string
+  hostname: string,
+  path: string
 ): [Principal, string] | null {
-  const maybeFixed = hostnameCanisterIdMap[hostname];
+  const maybeFixed = hostnameCanisterIdMap[hostname + path];
   if (maybeFixed) {
     return [Principal.fromText(maybeFixed[0]), maybeFixed[1]];
   }
 
   const subdomains = hostname.split('.').reverse();
-  const topdomains = [];
+  const topdomains: string[] = [];
   for (const domain of subdomains) {
     try {
       const principal = Principal.fromText(domain);
@@ -69,10 +68,11 @@ function splitHostnameForCanisterId(
  * @returns A Canister ID or null if none were found.
  */
 function maybeResolveCanisterIdFromHostName(
-  hostname: string
+  hostname: string,
+  path: string
 ): Principal | null {
   // Try to resolve from the right to the left.
-  const maybeCanisterId = splitHostnameForCanisterId(hostname);
+  const maybeCanisterId = splitHostnameForCanisterId(hostname, path);
   if (maybeCanisterId && swDomains === maybeCanisterId[1]) {
     return maybeCanisterId[0];
   }
@@ -120,7 +120,7 @@ function resolveCanisterIdFromUrl(
   try {
     const url = new URL(urlString);
     return (
-      maybeResolveCanisterIdFromHostName(url.hostname) ||
+      maybeResolveCanisterIdFromHostName(url.hostname, url.pathname) ||
       maybeResolveCanisterIdFromSearchParam(url.searchParams, isLocal)
     );
   } catch (_) {
@@ -142,7 +142,8 @@ function maybeResolveCanisterIdFromHeaders(
   if (maybeHostHeader) {
     // Remove the port.
     const maybeCanisterId = maybeResolveCanisterIdFromHostName(
-      maybeHostHeader.replace(/:\d+$/, '')
+      maybeHostHeader.replace(/:\d+$/, ''),
+      null
     );
     if (maybeCanisterId) {
       return maybeCanisterId;
@@ -255,7 +256,7 @@ export async function handleRequest(request: Request): Promise<Response> {
   );
   if (maybeCanisterId) {
     try {
-      const origin = splitHostnameForCanisterId(url.hostname);
+      const origin = splitHostnameForCanisterId(url.hostname, url.pathname);
       const [agent, actor] = await createAgentAndActor(
         origin ? url.protocol + '//' + origin[1] : url.origin,
         maybeCanisterId,
